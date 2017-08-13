@@ -8,7 +8,8 @@ In my search to accomplish dns-01 challenge automation on Linode DNS, I found on
 # Reqiurements
 - dehydrated ACME client script (https://github.com/lukas2511/dehydrated)
 - POSIX-compatible shell (tested on bash and ash)
-- standard utilities (tested on GNU utilities)
+- grep
+- dig
 - openssl compatible binary (tested with openssl, should work with libressl)
 - curl
 - jq (https://stedolan.github.io/jq/)
@@ -39,3 +40,6 @@ Download linode-hook and place the script in the same location as dehydrated. Al
 - DEPLOYPATH - this is the base location where certificates will be deployed on the destination servers.
 
 Finally, configure your services to use the deployed certificates, and implement a strategy to reload the configuration when new certificates are deployed. The simplest way is to restart on a regular interval. A more exact approach can be seen in the certcheck script (requires an openssl compatible binary).
+
+# Development Goals
+The main goal is to reduce the number of external dependencies as much as possible, to increaes compatibility and ease of installation and maintenance. I'd like to eventually replace jq with a pure shell json interpreter.
