@@ -18,10 +18,10 @@ In my search to accomplish dns-01 challenge automation on Linode DNS, I found on
 - Linode account with DNS zones and an API key configured
 
 ## Limitations
-- Challenges are performed serially and must be completed before the script can continue. Linode only updates its DNS servers every 15 minutes, so even with a 5 minute TTL on your zones, it takes a very long time to get through multiple challenges. Ideas are welcome for ways to parallelize this portion (doing so would reduce total challenge time to ~15 minutes instead of ~15 minutes per challenge), but I'm not sure it's possible due to the design of dehydrated.
+- Challenges are performed serially and must be completed before the script can continue. Linode only updates its DNS servers every 15 minutes, so even with a 5 minute TTL on your zones, it takes a very long time to get through multiple challenges. Ideas are welcome for ways to parallelize this portion (doing so would reduce total challenge time to ~15 minutes instead of ~15 minutes per challenge).
 
 ## Configuration
-First, configure dehydrated per the documentation. This hook script is designed under the assumption that dehydrated will run as an unprivileged user (preferrably its own user), and that this user will exist on all target servers for deployment. It requires you to configure SSH key authentication between the host that this script runs on and the targets.
+First, [configure dehydrated per the documentation](https://github.com/lukas2511/dehydrated/blob/master/README.md#getting-started). This hook script is designed under the assumption that dehydrated will run as an unprivileged user (preferrably its own user), and that this same user will exist on all target servers for deployment. It requires you to configure SSH key authentication between the host that this script runs on and the deployment targets.
 
 Next, create the deploy path directory (defaults to `/etc/ssl/letsencrypt`) on all target servers, and set the dehydrated user as the owner of it. Then, create subdirectories on each server matching the common name of each certificate you want deployed to that server. For example, if you want `site1.com` on `server1`, and `site2.com` on `server2`, you would create a `/etc/ssl/letsencrypt/site1.com` directory on `server1`, and a `/etc/ssl/letsencrypt/site2.com` directory on `server2`.
 
