@@ -52,4 +52,6 @@ Configure your services to use the deployed certificates, and implement a strate
 Finally, add `dehydrated --cron` to the dehydrated user's crontab on a regular basis. Daily is probably best, but the interval is up to you. Keep in mind that it can take a long time to execute if you add a significant number of domains to the domains.txt file.
 
 ## Development Goals
-The main goal is to reduce the number of external dependencies as much as possible, to increase compatibility and ease of installation and maintenance. I'd like to eventually replace jq with a pure shell json interpreter.
+- Enable use of `HOOK_CHAIN=yes`
+- Reduce time spent doing challenges
+- Replace jq with a pure shell json interpreter (to reduce external dependencies)
