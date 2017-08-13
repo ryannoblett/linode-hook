@@ -22,7 +22,7 @@ In my search to accomplish dns-01 challenge automation on Linode DNS, I found on
 # Configuration
 First, configure dehydrated per the documentation. This hook script is designed under the assumption that dehydrated will run as an unprivileged user (preferrably its own user), and that this user will exist on all target servers for deployment. It requires you to configure SSH key authentication between the host that this script runs on and the targets.
 
-Next, create the /etc/ssl/letsencrypt directory on all target servers, and set the dehydrated user as the owner of it. Then, create subdirectories on each server matching the common name of each certificate you want deployed to that server. For example, if you want site1.com on server1, and site2.com on server2, you would create a /etc/ssl/letsencrypt/site1.com directory on server1, and a /etc/ssl/letsencrypt/site2.com directory on server2.
+Next, create the deploy path directory (defaults to /etc/ssl/letsencrypt) on all target servers, and set the dehydrated user as the owner of it. Then, create subdirectories on each server matching the common name of each certificate you want deployed to that server. For example, if you want site1.com on server1, and site2.com on server2, you would create a /etc/ssl/letsencrypt/site1.com directory on server1, and a /etc/ssl/letsencrypt/site2.com directory on server2.
 
 Once you have that set up, download the dehydrated script and configure it with the following options in the config file:
 - CHALLENGETYPE="dns-01"
@@ -34,7 +34,8 @@ Create your domains.txt file and put your domain names in it per the documentati
 
 Download linode-hook and place the script in the same location as dehydrated. All the configuration for the linode-hook script is done at the top of the script, and is mostly self-explanatory. Here's a quick summary.
 
-- API_KEY - this should point at a file which contains your Linode API key. By default it's ".apikey" in the current working directory.
+- MY_API_KEY - this should point at a file which contains your Linode API key. By default it's ".apikey" in the current working directory.
 - HOSTS - this is a list of hostnames where you want your certificates to be deployed upon successful issue.
+- DEPLOYPATH - this is the base location where certificates will be deployed on the destination servers.
 
 Finally, configure your services to use the deployed certificates, and implement a strategy to reload the configuration when new certificates are deployed. The simplest way is to restart on a regular interval. A more exact approach can be seen in the certcheck script (requires an openssl compatible binary).
