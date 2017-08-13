@@ -21,17 +21,17 @@ In my search to accomplish dns-01 challenge automation on Linode DNS, I found on
 - Challenges are performed serially and must be completed before the script can continue. Linode only updates its DNS servers every 15 minutes, so even with a 5 minute TTL on your zones, it takes a very long time to get through multiple challenges. Ideas are welcome for ways to parallelize this portion (doing so would reduce total challenge time to ~15 minutes instead of ~15 minutes per challenge).
 
 ## Configuration
-First, download the dehydrated script and [configure dehydrated per the documentation](https://github.com/lukas2511/dehydrated/blob/master/README.md#getting-started). This hook script is designed under the assumption that dehydrated will run as an unprivileged user (preferrably its own user), and that this same user will exist on all target servers for deployment. It requires you to configure SSH key authentication between the host that this script runs on and the deployment targets.
+This hook script is designed under the assumption that dehydrated will run as an unprivileged user (preferrably its own user), and that this same user will exist on all target servers for deployment. It requires you to configure SSH key authentication between the host that this script runs on and the deployment targets.
 
-Next, create the deploy path directory (defaults to `/etc/ssl/letsencrypt`) on all target servers, and set the dehydrated user as the owner of it. Then, create subdirectories on each server matching the common name of each certificate you want deployed to that server. For example, if you want `site1.com` on `server1`, and `site2.com` on `server2`, you would create a `/etc/ssl/letsencrypt/site1.com` directory on `server1`, and a `/etc/ssl/letsencrypt/site2.com` directory on `server2`.
-
-Once you have that set up, configure dehydrated with the following options in the config file:
+First, download the dehydrated script and [configure dehydrated per the documentation](https://github.com/lukas2511/dehydrated/blob/master/README.md#getting-started). Configure dehydrated with the following options in the config file:
 - `CHALLENGETYPE="dns-01"`
 - `HOOK="linode-hook"`
 
 You must leave `HOOK_CHAIN="no"` (this is the default and does not need to be defined explicitly). Configure the other options as necessary to suit your environment. 
 
-Create your `domains.txt` file and put your domain names in it per the documentation.
+Create your `domains.txt` file and put your domain names in it.
+
+Next, create the deploy path directory (defaults to `/etc/ssl/letsencrypt`) on all target servers, and set the dehydrated user as the owner of it. Then, create subdirectories on each server matching the common name of each certificate you want deployed to that server. For example, if you want `site1.com` on `server1`, and `site2.com` on `server2`, you would create a `/etc/ssl/letsencrypt/site1.com` directory on `server1`, and a `/etc/ssl/letsencrypt/site2.com` directory on `server2`.
 
 Download linode-hook and place the script in the same location as dehydrated. All the configuration for the `linode-hook` script is done at the top of the script, and is mostly self-explanatory. Here's a quick summary.
 
@@ -39,7 +39,17 @@ Download linode-hook and place the script in the same location as dehydrated. Al
 - `HOSTS` - this is a list of hostnames where you want your certificates to be deployed upon successful issue.
 - `DEPLOYPATH` - this is the base location where certificates will be deployed on the destination servers.
 
-Finally, configure your services to use the deployed certificates, and implement a strategy to reload the configuration when new certificates are deployed. The simplest way is to restart on a regular interval. A more exact approach can be seen in the certcheck script (requires an openssl compatible binary).
+Create an ssh keypair for the user running the dehydrated script, and add the public key to the authorized_keys file for the same user on all the destination hosts.
+
+Run dehydrated for the first time and register with Let's Encrypt.
+- `./dehydrated --register --accept-license`
+
+Run dehydrated for the second time to start requesting certificates. You will have to accept SSH host keys during the first deploy step if you haven't already done so.
+- `./dehydrated --cron`
+
+Configure your services to use the deployed certificates, and implement a strategy to reload the configuration when new certificates are deployed. The simplest way is to restart on a regular interval. A more exact approach can be seen in the `certcheck` script (requires an openssl compatible binary on the destination hosts).
+
+Finally, add `dehydrated --cron` to the dehydrated user's crontab on a regular basis. Daily is probably best, but the interval is up to you. Keep in mind that it can take a long time to execute if you add a significant number of domains to the domains.txt file.
 
 ## Development Goals
 The main goal is to reduce the number of external dependencies as much as possible, to increase compatibility and ease of installation and maintenance. I'd like to eventually replace jq with a pure shell json interpreter.
