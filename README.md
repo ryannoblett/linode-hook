@@ -26,6 +26,7 @@ Next, create the /etc/ssl/letsencrypt directory on all target servers, and set t
 Once you have that set up, download the dehydrated script and configure it with the following options in the config file:
 - CHALLENGETYPE="dns-01"
 - HOOK="linode-hook"
+
 You must leave HOOK_CHAIN="no" (this is the default and does not need to be defined explicitly). Configure the other options as necessary to suit your environment. 
 
 Create your domains.txt file and put your domain names in it per the documentation.
