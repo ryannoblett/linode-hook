@@ -10,6 +10,7 @@ In my search to accomplish dns-01 challenge automation on Linode DNS, I found on
 - POSIX-compatible shell (tested on bash and ash)
 - standard utilities (tested on GNU utilities)
 - openssl compatible binary (tested with openssl, should work with libressl)
+- curl
 - jq (https://stedolan.github.io/jq/)
 - ssh client
 - rsync
