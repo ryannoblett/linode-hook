@@ -107,8 +107,8 @@ verify_change() {
 	RESULT=""
 	until [ ".$RESULT" != "." ]
 	do
-		sleep 60
 		RESULT=`dig TXT $1 +noall +answer | grep IN | grep \"$2\"$`
+		sleep 60
 	done
 }
 
