@@ -31,15 +31,15 @@ You must leave `HOOK_CHAIN="no"` (this is the default and does not need to be de
 
 Create your `domains.txt` file and put your domain names in it.
 
-Next, create the deploy path directory (defaults to `/etc/ssl/letsencrypt`) on all target servers, and set the dehydrated user as the owner of it. Then, create subdirectories on each server matching the common name of each certificate you want deployed to that server. For example, if you want `site1.com` on `server1`, and `site2.com` on `server2`, you would create a `/etc/ssl/letsencrypt/site1.com` directory on `server1`, and a `/etc/ssl/letsencrypt/site2.com` directory on `server2`.
-
-Download linode-hook and place the script in the same location as dehydrated. All the configuration for the `linode-hook` script is done at the top of the script, and is mostly self-explanatory. Here's a quick summary.
+Download `linode-hook` and place the script in the same location as dehydrated. All the configuration for the `linode-hook` script is done at the top of the script, and is mostly self-explanatory. Here's a quick summary.
 
 - `MY_API_KEY` - this should point at a file which contains your Linode API key. By default it's `.apikey` in the script's working directory.
 - `HOSTS` - this is a list of hostnames where you want your certificates to be deployed upon successful issue.
 - `DEPLOYPATH` - this is the base location where certificates will be deployed on the destination servers.
 
-Create an ssh keypair for the user running the dehydrated script, and add the public key to the authorized_keys file for the same user on all the destination hosts.
+Next, create the deploy path directory (defaults to `/etc/ssl/letsencrypt`) on all target servers, and set the dehydrated user as the owner of it. Then, create subdirectories on each server matching the common name of each certificate you want deployed to that server. For example, if you want `site1.com` on `server1`, and `site2.com` on `server2`, you would create a `/etc/ssl/letsencrypt/site1.com` directory on `server1`, and a `/etc/ssl/letsencrypt/site2.com` directory on `server2`.
+
+Create an ssh keypair for the user running the dehydrated script, and add the public key to the `authorized_keys` file for the same user on all the destination hosts.
 
 Run dehydrated for the first time and register with Let's Encrypt.
 - `./dehydrated --register --accept-license`
