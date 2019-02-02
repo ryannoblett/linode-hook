@@ -7,7 +7,6 @@ URLS="$(find /etc/ssl/letsencrypt -type d -name '*.*' -exec basename {} \;)"
 # Iterate over each URL
 for URL in $URLS
 do
-
   # Get the currently active cert issue date
   ACTIVECERT=`echo | openssl s_client -connect 127.0.0.1:443 -servername $URL 2>/dev/null | openssl x509 -noout -startdate`
 
