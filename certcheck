@@ -1,21 +1,32 @@
 #!/bin/sh
 PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
-# common name for the certificate - SANs don't matter here
-URL="your.site.org"
+# List all directories in Let's Encrypt certificate directory - this translates a list of URLs
+URLS="$(find /etc/ssl/letsencrypt -type d -name '*.*' -exec basename {} \;)"
 
-# location of the certificates
-SOURCE="/etc/ssl/letsencrypt/$URL"
+# Iterate over each URL
+for URL in $URLS
+do
 
-# active cert issue date
-ACTIVECERT=`echo | openssl s_client -connect 127.0.0.1:443 2>/dev/null | openssl x509 -noout -startdate`
+  # Get the currently active cert issue date
+  ACTIVECERT=`echo | openssl s_client -connect 127.0.0.1:443 -servername $URL 2>/dev/null | openssl x509 -noout -startdate`
 
-# current file cert issue date
-NEWCERT=`cat $SOURCE/cert.pem | openssl x509 -noout -startdate`
+  # Location of the certificate files
+  SOURCE="/etc/ssl/letsencrypt/$URL"
 
-# check if certificate has been updated
-if [ "$ACTIVECERT" != "$NEWCERT" ]
+  # Get the current file cert issue date
+  NEWCERT=`cat $SOURCE/cert.pem | openssl x509 -noout -startdate`
+
+  # Check if certificate has been updated
+  if [ "$ACTIVECERT" != "$NEWCERT" ]
+  then
+    # If it has, trigger a reload
+    RELOAD="true"
+  fi
+done
+
+# Only reload once, if needed
+if [ "$RELOAD" = "true" ]
 then
-  # restart services - apache2 example
   service apache2 reload
 fi
