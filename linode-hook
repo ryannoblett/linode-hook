@@ -8,7 +8,7 @@
 # Configuration
 
 # hosts to deploy certificates to
-HOSTS="server1 server2"
+HOSTS="$(cat hosts)"
 
 # location to deploy certificates on destination servers
 DEPLOYPATH="/etc/ssl/letsencrypt"
@@ -17,7 +17,7 @@ DEPLOYPATH="/etc/ssl/letsencrypt"
 MY_PATH="$( cd -P "$( dirname "$0" )" && pwd )"
 
 # API key (defaults to file .apikey in $MYPATH location)
-MY_API_KEY=`cat $MY_PATH/.apikey 2>/dev/null`
+MY_API_KEY=$(cat $MY_PATH/.apikey 2>/dev/null)
 
 # Linode API URL
 LINODE_API_URL="https://api.linode.com/?api_key=$MY_API_KEY"
@@ -31,149 +31,168 @@ CHALLENGE=$4
 
 # Retrieves a list of domains in your linode DNS manager.
 list_domains() {
-	GET=$(curl --silent $LINODE_API_URL\&api_action=domain.list)
-	if [ ".$GET" != "." ] 
-	then
-		echo "$GET" | jq -a '.'
-	else
-		echo ""
-	fi
+        GET=$(curl --silent $LINODE_API_URL\&api_action=domain.list)
+        if [ ".$GET" != "." ]
+        then
+                echo "$GET" | jq -a '.'
+        else
+                echo ""
+        fi
 }
 
 # Retrieves a list of resources (i.e. subdomains) for a particular domain.
 # @param Domain ID
 list_resources() {
-	[ $# -ne 1 ] && {
-		echo "Usage: list_resources DomainID" 1>&2;
-		exit 1;
-	}
-	GET=$(curl --silent $LINODE_API_URL\&api_action=domain.resource.list\&DomainID=$1)
-	if [ ".$GET" != "." ] 
-	then
-		echo "$GET" | jq -a '.'
-	else
-		echo ""
-	fi
+        [ $# -ne 1 ] && {
+                echo "Usage: list_resources DomainID" 1>&2;
+                exit 1;
+        }
+        GET=$(curl --silent $LINODE_API_URL\&api_action=domain.resource.list\&DomainID=$1)
+        if [ ".$GET" != "." ]
+        then
+                echo "$GET" | jq -a '.'
+        else
+                echo ""
+        fi
 }
 
 # Updates a domain resource.
 # @param Domain ID
 # @param Resource ID
 update_resource_target() {
-	[ $# -ne 3 ] && {
-		echo "Usage: update_resource_target domainid resourceid challengetoken" 1>&2;
-		exit 1;
-	}
-	echo $(curl --silent -g $LINODE_API_URL\&api_action=domain.resource.update\&DomainID=$1\&ResourceID=$2\&TTL_sec=300\&Target=$3)
+        [ $# -ne 3 ] && {
+                echo "Usage: update_resource_target domainid resourceid challengetoken" 1>&2;
+                exit 1;
+        }
+        echo $(curl --silent -g $LINODE_API_URL\&api_action=domain.resource.update\&DomainID=$1\&ResourceID=$2\&TTL_sec=300\&Target=$3)
 }
 
 # Creates a domain resource.
 # @param Domain ID
 create_resource_target() {
-	[ $# -ne 3 ] && {
-		echo "Usage: create_resource_target domainid resource challengetoken" 1>&2;
-	exit 1;
-	}
-	echo $(curl --silent -g $LINODE_API_URL\&api_action=domain.resource.create\&DomainID=$1\&Name=$2\&Type=TXT\&TTL_sec=300\&Target=$3)
+        [ $# -ne 3 ] && {
+                echo "Usage: create_resource_target domainid resource challengetoken" 1>&2;
+                exit 1;
+        }
+        echo $(curl --silent -g $LINODE_API_URL\&api_action=domain.resource.create\&DomainID=$1\&Name=$2\&Type=TXT\&TTL_sec=300\&Target=$3)
 }
 
 # Deletes a domain resource.
 # @param Domain ID
 # @param Resource ID
 delete_resource_target() {
-	[ $# -ne 2 ] && {
-		echo "Usage: delete_resource_target domainid resourceid" 1>&2;
-	exit 1;
-	}
-	echo $(curl --silent -g $LINODE_API_URL\&api_action=domain.resource.delete\&DomainID=$1\&ResourceID=$2)
+        [ $# -ne 2 ] && {
+                echo "Usage: delete_resource_target domainid resourceid" 1>&2;
+                exit 1;
+        }
+        echo $(curl --silent -g $LINODE_API_URL\&api_action=domain.resource.delete\&DomainID=$1\&ResourceID=$2)
 }
 
 process_domain() {
-	TLD=${FULL_DOMAIN##*.}
-	DOMAIN=${FULL_DOMAIN%%.$TLD*}
-	DOMAIN=${DOMAIN##*.}
-	DOMAIN=$DOMAIN.$TLD
-	SUBDOMAIN=${FULL_DOMAIN%%$DOMAIN*}
-	RESOURCE="_acme-challenge.${SUBDOMAIN}"
-	RESOURCE=${RESOURCE%.*}
-	DOMAIN_ID=`list_domains | jq ".DATA[] | select(.DOMAIN==\"$DOMAIN\") | .DOMAINID"`
-	if [ ".$DOMAIN_ID" != "." ]
-	then
-		RESOURCE_ID=`list_resources $DOMAIN_ID | jq -r ".DATA[] | select(.TYPE==\"TXT\") | select(.NAME==\"$RESOURCE\") | .RESOURCEID"`
-	fi
+        DOMAIN=$(list_domains | jq ".DATA[] | select(.DOMAIN==\"$FULL_DOMAIN\") | .DOMAIN" | tr -d \")
+        DOMAINSTUB=${FULL_DOMAIN}
+        while [ "x" = "x$DOMAIN" ]
+        do
+                DOMAINSTUB=${DOMAINSTUB#*.}
+                if [ "x" != "x$DOMAINSTUB" ]
+                then
+                        DOMAIN=$(list_domains | jq ".DATA[] | select(.DOMAIN==\"$DOMAINSTUB\") | .DOMAIN")
+                else
+                        echo "Parent domain not found for $FULL_DOMAIN"
+                        exit 1
+                fi
+        done
+        TLD=${FULL_DOMAIN##*.}
+        SUBDOMAIN=${FULL_DOMAIN%%$DOMAIN*}
+        RESOURCE="_acme-challenge.${SUBDOMAIN}"
+        RESOURCE=${RESOURCE%.*}
+        DOMAIN_ID=$(list_domains | jq ".DATA[] | select(.DOMAIN==\"$DOMAIN\") | .DOMAINID")
+        if [ ".$DOMAIN_ID" != "." ]
+        then
+                RESOURCE_ID=$(list_resources $DOMAIN_ID | jq -r ".DATA[] | select(.TYPE==\"TXT\") | select(.NAME==\"$RESOURCE\") | .RESOURCEID")
+        fi
 }
 
 verify_change() {
-	RESULT=""
-	until [ ".$RESULT" != "." ]
-	do
-		RESULT=`dig TXT $1 +noall +answer | grep IN | grep \"$2\"$`
-		sleep 60
-	done
+        RESULT=""
+        until [ ".$RESULT" != "." ]
+        do
+                RESULT=$(dig TXT $1 +noall +answer | grep IN | grep \"$2\"$)
+                sleep 60
+        done
 }
 
 clean_challenge() {
-	process_domain
-	if [ ".$DOMAIN_ID" != "." ]
-	then
-		if [ ".$RESOURCE_ID" != "." ]
-		then
-			delete_resource_target $DOMAIN_ID $RESOURCE_ID
-		else
-			echo "No such resource: nothing to do."
-		fi
-	else
-		echo "Domain ID not found."
-	fi
+        process_domain
+        if [ ".$DOMAIN_ID" != "." ]
+        then
+                if [ ".$RESOURCE_ID" != "." ]
+                then
+                        delete_resource_target $DOMAIN_ID $RESOURCE_ID
+                else
+                        echo "No such resource: nothing to do."
+                fi
+        else
+                echo "Domain ID not found."
+        fi
 }
 
 deploy_challenge() {
-	process_domain
-	if [ ".$DOMAIN_ID" != "." ]
-	then
-		if [ ".$RESOURCE_ID" != "." ]
-		then
-			update_resource_target $DOMAIN_ID $RESOURCE_ID $CHALLENGE
-		else
-			create_resource_target $DOMAIN_ID $RESOURCE $CHALLENGE
-		fi
-		verify_change $RESOURCE.$DOMAIN $CHALLENGE
-	else
-		echo "Domain ID not found."
-	fi
+        process_domain
+        if [ ".$DOMAIN_ID" != "." ]
+        then
+                if [ ".$RESOURCE_ID" != "." ]
+                then
+                        update_resource_target $DOMAIN_ID $RESOURCE_ID $CHALLENGE
+                else
+                        create_resource_target $DOMAIN_ID $RESOURCE $CHALLENGE
+                fi
+                verify_change $RESOURCE.$DOMAIN $CHALLENGE
+        else
+                echo "Domain ID not found."
+        fi
 }
 
 deploy_cert() {
-	for HOST in $HOSTS
-	do
-		if ssh $HOST "[ -d $DEPLOYPATH/$FULL_DOMAIN ]"
-		then
-			echo " + Deploying certificate to $HOST... "
-			rsync -a $CERTDIR/$FULL_DOMAIN/. $HOST:$DEPLOYPATH/$FULL_DOMAIN/. && echo " + Succeeded!" || echo " + Failed!"
-		fi
-	done
+        for HOST in $HOSTS
+        do
+                if ssh $HOST "[ -d $DEPLOYPATH/$FULL_DOMAIN ]"
+                then
+                        echo " + Deploying certificate to $HOST... "
+                        rsync -a $CERTDIR/$FULL_DOMAIN/. $HOST:$DEPLOYPATH/$FULL_DOMAIN/. && echo " + Succeeded!" || echo " + Failed!"
+                fi
+        done
 }
 
 invalid_challenge() {
-	echo "Not yet implemented: invalid_challenge"
+        echo "Not yet implemented: invalid_challenge"
 }
 
 request_failure() {
-	echo "Not yet implemented: request_failure"
+        echo "Not yet implemented: request_failure"
 }
 
 startup_hook() {
-	true
+        true
 }
 
 exit_hook() {
-	true
+        true
 }
 
 unchanged_cert() {
-	true
+        true
 }
 
+debug() {
+        while true
+        do
+                echo -n "> "
+                read input
+                $input
+                echo ""
+        done
+}
 
 ##### DO IT
 
