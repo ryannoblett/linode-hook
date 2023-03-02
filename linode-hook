@@ -20,18 +20,14 @@ MY_PATH="$( cd -P "$( dirname "$0" )" && pwd )"
 MY_API_KEY=$(cat $MY_PATH/.apikey 2>/dev/null)
 
 # Linode API URL
-LINODE_API_URL="https://api.linode.com/?api_key=$MY_API_KEY"
+LINODE_API4_URL="https://api.linode.com/v4"
 
-# Parameters
-OPERATION=$1
-FULL_DOMAIN=$2
-CHALLENGE=$4
 
 # Linode API functions
 
 # Retrieves a list of domains in your linode DNS manager.
 list_domains() {
-        GET=$(curl --silent $LINODE_API_URL\&api_action=domain.list)
+        GET=$(curl --silent $LINODE_API4_URL/domains -H "Authorization: Bearer ${MY_API_KEY}" -H "Content-Type: application/json")
         if [ ".$GET" != "." ]
         then
                 echo "$GET" | jq -a '.'
@@ -47,7 +43,7 @@ list_resources() {
                 echo "Usage: list_resources DomainID" 1>&2;
                 exit 1;
         }
-        GET=$(curl --silent $LINODE_API_URL\&api_action=domain.resource.list\&DomainID=$1)
+        GET=$(curl --silent $LINODE_API4_URL/domains/$1/records -H "Authorization: Bearer ${MY_API_KEY}" -H "Content-Type: application/json")
         if [ ".$GET" != "." ]
         then
                 echo "$GET" | jq -a '.'
@@ -64,7 +60,7 @@ update_resource_target() {
                 echo "Usage: update_resource_target domainid resourceid challengetoken" 1>&2;
                 exit 1;
         }
-        echo $(curl --silent -g $LINODE_API_URL\&api_action=domain.resource.update\&DomainID=$1\&ResourceID=$2\&TTL_sec=300\&Target=$3)
+        echo $(curl --silent -g $LINODE_API4_URL/domains/$1/records/$2 -H "Authorization: Bearer ${MY_API_KEY}" -H "Content-Type: application/json" -X POST -d "{ \"ttl_sec\": 300, \"target\": \"$3\" }")
 }
 
 # Creates a domain resource.
@@ -74,7 +70,7 @@ create_resource_target() {
                 echo "Usage: create_resource_target domainid resource challengetoken" 1>&2;
                 exit 1;
         }
-        echo $(curl --silent -g $LINODE_API_URL\&api_action=domain.resource.create\&DomainID=$1\&Name=$2\&Type=TXT\&TTL_sec=300\&Target=$3)
+        echo $(curl --silent -g $LINODE_API4_URL/domains/$1/records -H "Authorization: Bearer ${MY_API_KEY}" -H "Content-Type: application/json" -X POST -d "{ \"type\": \"TXT\", \"name\": \"$2\", \"ttl_sec\": 300, \"target\": \"$3\" }")
 }
 
 # Deletes a domain resource.
@@ -85,18 +81,18 @@ delete_resource_target() {
                 echo "Usage: delete_resource_target domainid resourceid" 1>&2;
                 exit 1;
         }
-        echo $(curl --silent -g $LINODE_API_URL\&api_action=domain.resource.delete\&DomainID=$1\&ResourceID=$2)
+        echo $(curl --silent -g $LINODE_API4_URL/domains/$1/records/$2 -H "Authorization: Bearer ${MY_API_KEY}" -H "Content-Type: application/json" -X DELETE)
 }
 
 process_domain() {
-        DOMAIN=$(list_domains | jq ".DATA[] | select(.DOMAIN==\"$FULL_DOMAIN\") | .DOMAIN" | tr -d \")
+        DOMAIN=$(list_domains | jq ".data[] | select(.domain==\"$FULL_DOMAIN\") | .domain" | tr -d \")
         DOMAINSTUB=${FULL_DOMAIN}
         while [ "x" = "x$DOMAIN" ]
         do
                 DOMAINSTUB=${DOMAINSTUB#*.}
                 if [ "x" != "x$DOMAINSTUB" ]
                 then
-                        DOMAIN=$(list_domains | jq ".DATA[] | select(.DOMAIN==\"$DOMAINSTUB\") | .DOMAIN")
+                        DOMAIN=$(list_domains | jq ".data[] | select(.domain==\"$DOMAINSTUB\") | .domain" | tr -d \")
                 else
                         echo "Parent domain not found for $FULL_DOMAIN"
                         exit 1
@@ -106,20 +102,38 @@ process_domain() {
         SUBDOMAIN=${FULL_DOMAIN%%$DOMAIN*}
         RESOURCE="_acme-challenge.${SUBDOMAIN}"
         RESOURCE=${RESOURCE%.*}
-        DOMAIN_ID=$(list_domains | jq ".DATA[] | select(.DOMAIN==\"$DOMAIN\") | .DOMAINID")
+        DOMAIN_ID=$(list_domains | jq ".data[] | select(.domain==\"$DOMAIN\") | .id" | tr -d \")
         if [ ".$DOMAIN_ID" != "." ]
         then
-                RESOURCE_ID=$(list_resources $DOMAIN_ID | jq -r ".DATA[] | select(.TYPE==\"TXT\") | select(.NAME==\"$RESOURCE\") | .RESOURCEID")
+                RESOURCE_ID=$(list_resources $DOMAIN_ID | jq -r ".data[] | select(.type==\"TXT\") | select(.name==\"$RESOURCE\") | .id" | tr -d \")
         fi
 }
 
 verify_change() {
+        echo "Verifying..."
+        #set -x
+        servers="8.8.8.8 8.8.4.4 1.1.1.1"
+        i=0
+        j=0
         RESULT=""
         until [ ".$RESULT" != "." ]
         do
-                RESULT=$(dig TXT $1 +noall +answer | grep IN | grep \"$2\"$)
+                server=$(echo $servers | cut -d\  -f${i})
+                RESULT=$(dig @$server TXT $1 +noall +answer | grep IN | grep \"$2\"$)
                 sleep 60
+                i=$((i+1))
+                if [ $i -gt $(echo $servers | awk '{print NF}') ]
+                then
+                        i=0
+                fi
+                j=$((j+1))
+                if [ $j -ge 30 ]
+                then
+                        echo "$j attempts failed. Timed out."
+                        break
+                fi
         done
+        #set +x
 }
 
 clean_challenge() {
@@ -184,6 +198,14 @@ unchanged_cert() {
         true
 }
 
+sync_cert() {
+        true
+}
+
+generate_csr() {
+        true
+}
+
 debug() {
         while true
         do
@@ -196,5 +218,25 @@ debug() {
 
 ##### DO IT
 
-$OPERATION
-exit 0;
+# Parameters
+OPERATION=$1
+shift
+
+while [ "x" != "x$3" ]
+do
+        FULL_DOMAIN=$1
+        CHALLENGE=$3
+        if [ "x$OPERATION" != "x" ]
+        then
+                if [ "x$(grep $OPERATION\(\)\ \{$ $0)" != "x" ]
+                then
+                        $OPERATION &
+                        sleep 0.1
+                else
+                        exit 1
+                fi
+        fi
+        shift 3
+done
+wait
+exit 0
