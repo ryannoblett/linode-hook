@@ -51,5 +51,11 @@ Configure your services to use the deployed certificates, and implement a strate
 
 Finally, add `dehydrated --cron` to the dehydrated user's crontab on a regular basis. Daily is probably best, but the interval is up to you. Keep in mind that it can take a long time to execute if you add a significant number of domains to the domains.txt file.
 
+## Certificate Checker
+I have included certcheck, which is a sample script you can add to the crontabs of the servers where the certificates will be deployed. 
+As written, it will look up the names of certificates deployed to the server from linode-hook, check if there are newer certificates than the ones currently being used by the web server at each given URL, and if so, it will reload the webserver (in the example, apache2) to apply the new certificate. 
+
+This will need to be modified slightly to match the web server or other services you are running, but it's the last piece needed to have the central deployment fully automated. Without it, or an equivalent tool, the service will need to be reloaded manually whenever the certificates expire.
+
 ## Development Goals
 - Replace jq with a pure shell json interpreter (to reduce external dependencies)
